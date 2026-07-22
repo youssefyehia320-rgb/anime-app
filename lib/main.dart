@@ -1,6 +1,6 @@
-hereimport 'package:flutter/material.dart';
-import 'http' as http;
-import 'convert' as json;
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert' as json;
 
 void main() {
   runApp(const AnimeApp());
@@ -38,11 +38,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> fetchAnime() async {
-    final response = await http.get(Uri.parse('https://api.jikan.moe/v4/top/anime'));
-    if (response.statusCode == 200) {
-      final data = json.jsonDecode(response.body);
+    try {
+      final response = await http.get(Uri.parse('https://api.jikan.moe/v4/top/anime'));
+      if (response.statusCode == 200) {
+        final data = json.jsonDecode(response.body);
+        setState(() {
+          animeList = data['data'];
+          isLoading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
-        animeList = data['data'];
         isLoading = false;
       });
     }
@@ -73,11 +79,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       Padding(
                         padding: const EdgeInsets.all(8.0),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
                         child: Text(
-                          anime['title'],
+                          anime['title'] ?? '',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
