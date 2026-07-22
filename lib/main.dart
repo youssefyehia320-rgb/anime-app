@@ -1,96 +1,109 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert' as json;
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 
 void main() {
-  runApp(const AnimeApp());
+  runApp(const MaterialApp(
+    debugShowCheckedModeBanner: false,
+    title: 'Anime App Test',
+    home: AnimePlayerScreen(),
+  ));
 }
 
-class AnimeApp extends StatelessWidget {
-  const AnimeApp({super.key});
+class AnimePlayerScreen extends StatefulWidget {
+  const AnimePlayerScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Anime App',
-      theme: ThemeData.dark(),
-      home: const HomeScreen(),
-    );
-  }
+  State<AnimePlayerScreen> createState() => _AnimePlayerScreenState();
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class _AnimePlayerScreenState extends State<AnimePlayerScreen> {
+  late VideoPlayerController _videoPlayerController;
+  ChewieController? _chewieController;
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  List animeList = [];
-  bool isLoading = true;
+  // رابط فيديو "تست" خفيف جداً ومباشر من جوجل (صيغة MP4)
+  final String videoUrl =
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 
   @override
   void initState() {
     super.initState();
-    fetchAnime();
+    initializePlayer();
   }
 
-  Future<void> fetchAnime() async {
-    try {
-      final response = await http.get(Uri.parse('https://api.jikan.moe/v4/top/anime'));
-      if (response.statusCode == 200) {
-        final data = json.jsonDecode(response.body);
-        setState(() {
-          animeList = data['data'];
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-    }
+  Future<void> initializePlayer() async {
+    // 1. تهيئة مشغل الفيديو
+    _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+    await _videoPlayerController.initialize();
+
+    // 2. تهيئة تحكمات Chewie مع الشعار التراكبي
+    _chewieController = ChewieController(
+      videoPlayerController: _videoPlayerController,
+      autoPlay: true,
+      looping: true,
+      aspectRatio: 16 / 9,
+      
+      // الشعار التراكبي (المربع الذي يغطي الشعار الأصلي)
+      overlay: Stack(
+        children: [
+          Positioned(
+            top: 20, // المسافة من الأعلى
+            left: 20, // تعديل سابق: زاوية شمال فوق
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.8), // خلفية سوداء شبه شفافة
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Anime Night', // التعديل الجديد: النص المطلوب
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // 3. تحديث واجهة المستخدم بعد جاهزية المشغل
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _videoPlayerController.dispose();
+    _chewieController?.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('أبرز الأنميات')),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.7,
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('مشاهدة تجريبية'),
+        backgroundColor: Colors.black,
+      ),
+      body: Center(
+        child: _chewieController != null &&
+                _chewieController!.videoPlayerController.value.isInitialized
+            ? AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Chewie(controller: _chewieController!),
+              )
+            : const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 10),
+                  Text('جاري تحميل الفيديو...', style: TextStyle(color: Colors.white)),
+                ],
               ),
-              itemCount: animeList.length,
-              itemBuilder: (context, index) {
-                final anime = animeList[index];
-                return Card(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Image.network(
-                          anime['images']['jpg']['image_url'],
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          anime['title'] ?? '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+      ),
     );
   }
 }
