@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 
 void main() {
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    title: 'Anime App Test',
-    home: AnimePlayerScreen(),
-  ));
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Anime Night',
+      theme: ThemeData.dark(),
+      home: const AnimePlayerScreen(),
+    );
+  }
 }
 
 class AnimePlayerScreen extends StatefulWidget {
@@ -18,65 +27,29 @@ class AnimePlayerScreen extends StatefulWidget {
 }
 
 class _AnimePlayerScreenState extends State<AnimePlayerScreen> {
-  late VideoPlayerController _videoPlayerController;
-  ChewieController? _chewieController;
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
 
-  // رابط فيديو "تست" خفيف جداً ومباشر من جوجل (صيغة MP4)
+  // رابط الفيديو التجريبي الخفيف من سيرفرات جوجل (صيغة MP4)
   final String videoUrl =
       'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 
   @override
   void initState() {
     super.initState();
-    initializePlayer();
-  }
-
-  Future<void> initializePlayer() async {
-    // 1. تهيئة مشغل الفيديو
-    _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
-    await _videoPlayerController.initialize();
-
-    // 2. تهيئة تحكمات Chewie مع الشعار التراكبي
-    _chewieController = ChewieController(
-      videoPlayerController: _videoPlayerController,
-      autoPlay: true,
-      looping: true,
-      aspectRatio: 16 / 9,
-      
-      // الشعار التراكبي (المربع الذي يغطي الشعار الأصلي)
-      overlay: Stack(
-        children: [
-          Positioned(
-            top: 20, // المسافة من الأعلى
-            left: 20, // تعديل سابق: زاوية شمال فوق
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8), // خلفية سوداء شبه شفافة
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Anime Night', // التعديل الجديد: النص المطلوب
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    // 3. تحديث واجهة المستخدم بعد جاهزية المشغل
-    setState(() {});
+    _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
+      ..initialize().then((_) {
+        setState(() {
+          _isInitialized = true;
+        });
+        _controller.play(); // تشغيل الفيديو أوتوماتيكياً عند الجاهزية
+        _controller.setLooping(true);
+      });
   }
 
   @override
   void dispose() {
-    _videoPlayerController.dispose();
-    _chewieController?.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -85,22 +58,89 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('مشاهدة تجريبية'),
+        title: const Text('Anime Night'),
         backgroundColor: Colors.black,
+        centerTitle: true,
       ),
       body: Center(
-        child: _chewieController != null &&
-                _chewieController!.videoPlayerController.value.isInitialized
+        child: _isInitialized
             ? AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Chewie(controller: _chewieController!),
+                aspectRatio: _controller.value.aspectRatio,
+                child: Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    // 1. مشغل الفيديو الرئيسي
+                    VideoPlayer(_controller),
+
+                    // 2. الشعار التراكبي فوق زاوية الشمال (تغطية الراعي)
+                    Positioned(
+                      top: 15,
+                      left: 15, // زاوية شمال فوق
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.85), // خلفية سوداء لتغطية ما تحتها
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.redAccent, width: 1),
+                        ),
+                        child: const Text(
+                          'Anime Night',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // 3. أزرار التحكم والتشغيل المدمجة
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _controller.value.isPlaying
+                              ? _controller.pause()
+                              : _controller.play();
+                        });
+                      },
+                      child: Container(
+                        color: Colors.transparent,
+                        child: Center(
+                          child: AnimatedOpacity(
+                            opacity: _controller.value.isPlaying ? 0.0 : 0.9,
+                            duration: const Duration(milliseconds: 300),
+                            child: const Icon(
+                              Icons.play_circle_fill,
+                              size: 70,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // 4. شريط تقدم الفيديو (Progress Bar)
+                    VideoProgressIndicator(
+                      _controller,
+                      allowScrubbing: true,
+                      colors: const VideoProgressColors(
+                        playedColor: Colors.redAccent,
+                        bufferedColor: Colors.grey,
+                        backgroundColor: Colors.white24,
+                      ),
+                    ),
+                  ],
+                ),
               )
             : const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 10),
-                  Text('جاري تحميل الفيديو...', style: TextStyle(color: Colors.white)),
+                  CircularProgressIndicator(color: Colors.redAccent),
+                  SizedBox(height: 15),
+                  Text(
+                    'جاري تحميل الفيديو...',
+                    style: TextStyle(color: Colors.white, fontSize: 15),
+                  ),
                 ],
               ),
       ),
